@@ -5,22 +5,13 @@ defmodule AOC.Day07.VmState do
     current_index: 0,
     memory_buffer: %{},
     opcodes: %{},
-    in_buffer: [],
-    output_buffer: []
+    output_buffer: [],
+    output_target: nil,
+    vm_id: nil,
+    manager: nil
   ]
 
-  def new(buffer) do
-    mapped = Enum.with_index(buffer)
-    m_buffer = Enum.reduce(mapped, %{}, fn({e, i}, acc) ->
-      Map.put(acc, i, e)
-    end)
-    %__MODULE__{
-      memory_buffer: m_buffer,
-      opcodes: register_opcodes()
-    }
-  end
-
-  def new(buffer, input) do
+  def new(buffer, vm_id, output_target, manager) do
     mapped = Enum.with_index(buffer)
     m_buffer = Enum.reduce(mapped, %{}, fn({e, i}, acc) ->
       Map.put(acc, i, e)
@@ -28,8 +19,25 @@ defmodule AOC.Day07.VmState do
     %__MODULE__{
       memory_buffer: m_buffer,
       opcodes: register_opcodes(),
-      in_buffer: input
+      output_target: output_target,
+      vm_id: vm_id,
+      manager: manager
     }
+  end
+
+  def wait_init(state) do
+    receive do
+      {:start, _} ->  run(state)
+      {:set_output, op} ->  assign_output(state, op)
+    end
+  end
+
+  def assign_output(state, op) do
+    %{
+      state |
+      output_target: op
+    }
+    |> wait_init()
   end
 
   def run(state) do
@@ -52,7 +60,9 @@ defmodule AOC.Day07.VmState do
   defp next(state) do
     {op_code, flags} = read_opcode_and_flags(state)
     case Map.get(state.opcodes, op_code, :halt) do
-      :halt -> {:halt, state}
+      :halt ->
+        send(state.manager, {:halt, state.vm_id})
+        {:halt, state}
       oc -> {:cont, execute(state, oc, flags)}
     end
   end
@@ -89,6 +99,9 @@ defmodule AOC.Day07.VmState do
   end
 
   def output(state, output_value) do
+    Enum.each(state.output_target, fn(ot) ->
+      send(ot, {:input, state.vm_id, output_value})
+    end)
     %__MODULE__{
       state |
       output_buffer: [output_value|state.output_buffer]

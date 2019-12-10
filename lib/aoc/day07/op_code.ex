@@ -32,12 +32,11 @@ defmodule AOC.Day07.OpCode do
   end
 
   def read(state, _) do
-    [read_value|rest] = state.in_buffer
+    read_value = receive do
+      {:input, _, iv} -> iv
+    end
     output_location = Map.fetch!(state.memory_buffer, state.current_index + 1)
-    %{
-      state |
-      in_buffer: rest
-    }
+    state
     |> VmState.write(output_location, read_value)
     |> VmState.move_index(2)
   end

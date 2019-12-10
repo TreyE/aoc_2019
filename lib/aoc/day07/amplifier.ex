@@ -4,10 +4,19 @@ defmodule AOC.Day07.Amplifier do
   alias AOC.Day07.AmplifierSample
 
   def run_amplifier({phase_setting, input}) do
-    vm = VmState.new(Input.parsed_input(), [phase_setting, input])
-    {:halt, vm_result} = VmState.run(vm)
-    [amplitude|_] = vm_result.output_buffer
-    amplitude
+    vm = VmState.new(Input.parsed_input(), nil, [self()], self())
+    rp = spawn(fn -> VmState.wait_init(vm) end)
+    send(rp, {:start, nil})
+    send(rp, {:input, nil, phase_setting})
+    send(rp, {:input, nil, input})
+    loop([])
+  end
+
+  def loop(output_buffer) do
+    receive do
+      {:input, _, output} ->  loop([output|output_buffer])
+      {:halt, _} -> Enum.at(output_buffer, 0)
+    end
   end
 
   def permute_and_run_samples(samples) do
